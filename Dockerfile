@@ -2,9 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install GCC and OpenMP support
+# Install GCC, C development headers, and OpenMP runtime
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libgomp1 && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        libc6-dev \
+        libgomp1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy project files
@@ -23,3 +26,4 @@ EXPOSE 8501
 CMD ["streamlit", "run", "app.py", \
      "--server.address=0.0.0.0", \
      "--server.port=8501"]
+     
