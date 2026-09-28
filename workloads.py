@@ -1,10 +1,13 @@
 import numpy as np
 import time
+import subprocess
+import os
 
 
 def matrix_multiplication(size):
     """
-    Performs matrix multiplication and measures execution time.
+    Performs matrix multiplication using NumPy
+    and measures execution time.
     """
 
     np.random.seed(42)
@@ -26,24 +29,38 @@ def matrix_multiplication(size):
         "execution_time": execution_time,
         "result_shape": result.shape
     }
-import subprocess
-import os
 
 
 def run_openmp_matrix_multiplication(size, threads):
     """
-    Run the compiled OpenMP matrix multiplication worker.
+    Runs the compiled OpenMP matrix multiplication worker.
+
+    Uses:
+        openmp_worker.exe  -> Windows
+        openmp_worker      -> Linux/Azure
     """
 
     project_root = os.path.dirname(
         os.path.abspath(__file__)
     )
 
+    # Select the correct executable for the operating system
+    if os.name == "nt":
+        worker_name = "openmp_worker.exe"
+    else:
+        worker_name = "openmp_worker"
+
     worker_path = os.path.join(
         project_root,
         "workers",
-        "openmp_worker.exe"
+        worker_name
     )
+
+    # Make sure the worker exists
+    if not os.path.isfile(worker_path):
+        raise FileNotFoundError(
+            f"OpenMP worker not found: {worker_path}"
+        )
 
     command = [
         worker_path,
@@ -58,7 +75,12 @@ def run_openmp_matrix_multiplication(size, threads):
     )
 
     if process.returncode != 0:
-        raise RuntimeError(process.stderr)
+        error_message = process.stderr.strip()
+
+        if not error_message:
+            error_message = "OpenMP worker execution failed."
+
+        raise RuntimeError(error_message)
 
     output = {}
 
@@ -67,53 +89,21 @@ def run_openmp_matrix_multiplication(size, threads):
             key, value = line.split("=", 1)
             output[key] = value
 
-    return {
-        "workload": output["WORKLOAD"],
-        "size": int(output["SIZE"]),
-        "threads": int(output["THREADS"]),
-        "execution_time": float(output["EXECUTION_TIME"]),
-        "result_sample": float(output["RESULT_SAMPLE"])
-    }
-import subprocess
-import os
-
-
-def run_openmp_matrix_multiplication(size, threads):
-    """
-    Run the compiled OpenMP matrix multiplication worker.
-    """
-
-    project_root = os.path.dirname(
-        os.path.abspath(__file__)
-    )
-
-    worker_path = os.path.join(
-        project_root,
-        "workers",
-        "openmp_worker.exe"
-    )
-
-    command = [
-        worker_path,
-        str(size),
-        str(threads)
+    # Validate required worker output
+    required_keys = [
+        "WORKLOAD",
+        "SIZE",
+        "THREADS",
+        "EXECUTION_TIME",
+        "RESULT_SAMPLE"
     ]
 
-    process = subprocess.run(
-        command,
-        capture_output=True,
-        text=True
-    )
-
-    if process.returncode != 0:
-        raise RuntimeError(process.stderr)
-
-    output = {}
-
-    for line in process.stdout.strip().splitlines():
-        if "=" in line:
-            key, value = line.split("=", 1)
-            output[key] = value
+    for key in required_keys:
+        if key not in output:
+            raise RuntimeError(
+                f"OpenMP worker returned incomplete output. "
+                f"Missing: {key}"
+            )
 
     return {
         "workload": output["WORKLOAD"],
